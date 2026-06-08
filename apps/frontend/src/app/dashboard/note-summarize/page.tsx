@@ -33,6 +33,11 @@ export default function NoteSummarizerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { refreshUsage, usage } = useUsage();
   
+  const [fileId, setFileId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [askInput, setAskInput] = useState("");
+  const [asking, setAsking] = useState(false);
+  
   const plan = usage?.plan || "FREE";
   const LIMITS: Record<string, number> = {
     FREE: 2 * 1024 * 1024,      // 2MB
@@ -53,6 +58,71 @@ export default function NoteSummarizerPage() {
   const handleSummarize = () => {
     if (!isInputValid) return;
     start({ text: textInput });
+  };
+
+  const handleAsk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fileId || !askInput.trim() || asking) return;
+
+    const currentQuestion = askInput.trim();
+    setAskInput("");
+    setAsking(true);
+    setChatMessages((prev) => [...prev, { role: "user", text: currentQuestion }, { role: "assistant", text: "" }]);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/v1/ai/note-summarize/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId, question: currentQuestion }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get answer");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let partialText = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === "[DONE]") continue;
+
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.text) {
+                  partialText += parsed.text;
+                  setChatMessages((prev) => {
+                    const next = [...prev];
+                    next[next.length - 1] = { role: "assistant", text: partialText };
+                    return next;
+                  });
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Q&A Error:", err);
+      setChatMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { role: "assistant", text: "Error: Failed to obtain answer. Please try again." };
+        return next;
+      });
+    } finally {
+      setAsking(false);
+      refreshUsage();
+    }
   };
 
   const handleCopy = () => {
@@ -140,6 +210,10 @@ export default function NoteSummarizerPage() {
 
       if (data.success && data.text) {
         setTextInput(data.text);
+        if (data.fileId) {
+          setFileId(data.fileId);
+          setChatMessages([]);
+        }
       } else {
         throw new Error("No text could be extracted from this file.");
       }
@@ -266,7 +340,10 @@ export default function NoteSummarizerPage() {
 
             <textarea
               value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
+              onChange={(e) => {
+                setTextInput(e.target.value);
+                setFileId(null);
+              }}
               placeholder="Or paste your notes, lecture transcript, article, or meeting minutes here (minimum 50 characters)..."
               className="flex-1 w-full min-h-[260px] px-4 py-4 bg-black/40 border border-white/8 focus:border-amber-500/40 focus:outline-none rounded-xl text-sm text-gray-200 placeholder-gray-700 resize-none transition-colors"
             />
@@ -292,8 +369,8 @@ export default function NoteSummarizerPage() {
             </button>
           </div>
 
-          {/* Right: Summary Output */}
-          <div className="flex flex-col gap-4">
+          {/* Right: Summary Output & Q&A Panel */}
+          <div className="flex flex-col gap-4 h-full min-h-[500px]">
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-white">Summary & Key Insights</label>
               {loading && (
@@ -304,7 +381,7 @@ export default function NoteSummarizerPage() {
               )}
             </div>
 
-            <div className="flex-1 min-h-[400px] rounded-xl border border-white/8 bg-black/20 overflow-y-auto p-5">
+            <div className={`rounded-xl border border-white/8 bg-black/20 p-5 ${fileId && text ? "max-h-[300px] overflow-y-auto" : "flex-1 overflow-y-auto"}`}>
               {!text && !loading && !error && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">
                   <Sparkles className="w-10 h-10 text-gray-700 mb-3" />
@@ -356,6 +433,65 @@ export default function NoteSummarizerPage() {
                 </motion.div>
               )}
             </div>
+
+            {/* Document Q&A (RAG) */}
+            {fileId && text && (
+              <div className="flex-1 flex flex-col min-h-[300px] border border-white/8 rounded-xl bg-black/40 overflow-hidden">
+                <div className="px-4 py-2 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-200">Ask Document Q&A</span>
+                  <span className="text-[10px] text-amber-400 px-2 py-0.5 rounded-full bg-amber-400/10 font-medium">RAG Mode</span>
+                </div>
+                
+                {/* Q&A Message history */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs max-h-[220px]">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-6 text-gray-500">
+                      <p>Ask a specific question about this document.</p>
+                      <p className="text-[10px] text-gray-600 mt-1">E.g., "What are the main financial numbers?"</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-2.5 rounded-xl max-w-[85%] leading-relaxed ${
+                          msg.role === "user"
+                            ? "bg-amber-500/10 border border-amber-500/20 text-amber-100 ml-auto"
+                            : "bg-white/[0.03] border border-white/5 text-gray-200"
+                        }`}
+                      >
+                        {msg.role === "assistant" && !msg.text ? (
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                            Analyzing document...
+                          </div>
+                        ) : (
+                          <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Q&A Input form */}
+                <form onSubmit={handleAsk} className="p-3 bg-white/[0.01] border-t border-white/5 flex gap-2">
+                  <input
+                    type="text"
+                    value={askInput}
+                    onChange={(e) => setAskInput(e.target.value)}
+                    placeholder="Ask a question about this document..."
+                    disabled={asking}
+                    className="flex-1 px-3 py-1.5 bg-black/40 border border-white/8 focus:border-amber-500/40 focus:outline-none rounded-lg text-xs text-gray-200 placeholder-gray-600 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={asking || !askInput.trim()}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg text-xs font-semibold shadow-md shadow-amber-500/10 disabled:opacity-40"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       </div>

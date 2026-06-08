@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { geminiFlash } from "../../lib/gemini.js";
+import { geminiFlash, geminiEmbedding } from "../../lib/gemini.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { checkQuota, QuotaRequest } from "../../middlewares/quota.js";
 import { db } from "../../lib/db.js";
@@ -75,6 +75,101 @@ ${text}`;
     res.write("data: [DONE]\n\n");
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message || "Summarization failed" })}\n\n`);
+  } finally {
+    res.end();
+  }
+});
+
+// Q&A endpoint for uploaded documents (RAG)
+router.post("/ask", requireAuth, checkQuota, async (req: QuotaRequest, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const { fileId, question } = req.body;
+
+  if (!userId) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
+  }
+
+  if (!fileId || !question || typeof question !== "string" || question.trim().length === 0) {
+    res.status(400).json({ success: false, message: "fileId and question are required" });
+    return;
+  }
+
+  try {
+    const file = await db.uploadedFile.findFirst({
+      where: { id: fileId, userId }
+    });
+
+    if (!file) {
+      res.status(404).json({ success: false, message: "Document not found or access denied." });
+      return;
+    }
+
+    // 1. Generate embedding for user's question
+    const embedResult = await geminiEmbedding.embedContent(question);
+    const embedding = embedResult.embedding.values;
+    const embeddingString = `[${embedding.join(",")}]`;
+
+    // 2. Query document embeddings using pgvector cosine distance (<=>)
+    const chunks = await db.$queryRawUnsafe<any[]>(
+      `SELECT content FROM document_embeddings 
+       WHERE file_id = $1 
+       ORDER BY embedding <=> $2::vector 
+       LIMIT 4`,
+      fileId,
+      embeddingString
+    );
+
+    const contextText = chunks && chunks.length > 0
+      ? chunks.map((c) => c.content).join("\n\n")
+      : "No relevant document text chunks found.";
+
+    // 3. Set SSE response headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    req.on("close", () => res.end());
+
+    const systemPrompt = `You are a helpful senior AI assistant. You are answering questions about an uploaded document.
+Use the following extracted context chunks from the document to answer the user's question. 
+If the context does not contain the answer or is not relevant, answer the question using your general knowledge, but clearly state that the information was not found in the uploaded document.
+
+**Extracted Document Context:**
+${contextText}
+
+**User Question:**
+${question}
+
+Provide your answer in Markdown format.`;
+
+    const result = await geminiFlash.generateContentStream(systemPrompt);
+    let fullResponse = "";
+
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+      if (chunkText) {
+        fullResponse += chunkText;
+        res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+      }
+    }
+
+    // Save to AI History
+    await db.aIHistory.create({
+      data: {
+        userId,
+        toolId: AIToolType.NOTE_SUMMARIZER,
+        prompt: `Q&A: ${question.substring(0, 100)}`,
+        response: fullResponse,
+        tokensUsed: 0
+      }
+    });
+
+    res.write("data: [DONE]\n\n");
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err.message || "Failed to generate answer" })}\n\n`);
   } finally {
     res.end();
   }

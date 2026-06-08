@@ -44,6 +44,8 @@ import codeReviewRouter from "./routes/ai/code-review.js";
 import contentGenRouter from "./routes/ai/content-gen.js";
 import noteSummarizeRouter from "./routes/ai/note-summarize.js";
 import uploadRouter from "./routes/ai/upload.js";
+import imageGenRouter from "./routes/ai/image-gen.js";
+import resumeRouter from "./routes/ai/resume.js";
 
 // Health check endpoint
 app.get("/health", (req: Request, res: Response) => {
@@ -66,6 +68,9 @@ app.use("/api/v1/ai/code-review", codeReviewRouter);
 app.use("/api/v1/ai/content-gen", contentGenRouter);
 app.use("/api/v1/ai/note-summarize/upload", uploadRouter);
 app.use("/api/v1/ai/note-summarize", noteSummarizeRouter);
+app.use("/api/v1/ai/image-gen", imageGenRouter);
+app.use("/api/v1/ai/resume/upload", uploadRouter);
+app.use("/api/v1/ai/resume", resumeRouter);
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -26,3 +26,8 @@ export const geminiPro = genAI.getGenerativeModel({
   },
 }, { apiVersion: "v1" });
 
+// text-embedding-004 — for RAG embeddings
+export const geminiEmbedding = genAI.getGenerativeModel({
+  model: "text-embedding-004"
+});
+

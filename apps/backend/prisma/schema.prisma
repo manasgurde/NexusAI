@@ -252,6 +252,7 @@ model UploadedFile {
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  embeddings   DocumentEmbedding[]
 
   @@index([userId])
   @@index([organizationId])
@@ -309,4 +310,16 @@ model ChatMessage {
 
   @@index([sessionId])
   @@map("chat_messages")
+}
+
+model DocumentEmbedding {
+  id        String                      @id @default(uuid())
+  fileId    String                      @map("file_id")
+  content   String                      @db.Text
+  embedding Unsupported("vector(768)")?
+  createdAt DateTime                    @default(now()) @map("created_at")
+
+  uploadedFile UploadedFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@map("document_embeddings")
 }

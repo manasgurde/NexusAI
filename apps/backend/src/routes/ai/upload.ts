@@ -1,10 +1,24 @@
 import { Router, Response } from "express";
 import multer from "multer";
 import mammoth from "mammoth";
-import { geminiFlash } from "../../lib/gemini.js";
+import { geminiFlash, geminiEmbedding } from "../../lib/gemini.js";
 import pdfParse from "pdf-parse";
 import { requireAuth, AuthenticatedRequest } from "../../middlewares/auth.js";
 import { db } from "../../lib/db.js";
+import crypto from "crypto";
+
+function chunkText(text: string, chunkSize: number = 800, overlap: number = 100): string[] {
+  const chunks: string[] = [];
+  if (!text) return chunks;
+  let i = 0;
+  while (i < text.length) {
+    const end = Math.min(i + chunkSize, text.length);
+    chunks.push(text.slice(i, end));
+    i += chunkSize - overlap;
+    if (end === text.length) break;
+  }
+  return chunks;
+}
 
 const router = Router();
 
@@ -107,8 +121,40 @@ router.post("/", requireAuth, upload.single("file"), async (req: AuthenticatedRe
       return;
     }
 
+    // Save document details
+    const uploadedFile = await db.uploadedFile.create({
+      data: {
+        userId,
+        fileName: file.originalname,
+        fileUrl: `memory://${Date.now()}_${file.originalname}`,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      }
+    });
+
+    // Generate embeddings in chunks
+    const chunks = chunkText(cleanText, 800, 100);
+    console.log(`Chunked file into ${chunks.length} segments for vector database.`);
+
+    for (const chunk of chunks) {
+      const embedResult = await geminiEmbedding.embedContent(chunk);
+      const embedding = embedResult.embedding.values;
+      const embeddingId = crypto.randomUUID();
+      const embeddingString = `[${embedding.join(",")}]`;
+
+      await db.$executeRawUnsafe(
+        `INSERT INTO document_embeddings (id, file_id, content, embedding, created_at) VALUES ($1, $2, $3, $4::vector, $5)`,
+        embeddingId,
+        uploadedFile.id,
+        chunk,
+        embeddingString,
+        new Date()
+      );
+    }
+
     res.status(200).json({
       success: true,
+      fileId: uploadedFile.id,
       text: cleanText,
     });
   } catch (error: any) {
