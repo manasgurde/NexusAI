@@ -1,0 +1,22 @@
+{
+  "name": "nexusai-monorepo",
+  "version": "1.0.0",
+  "description": "NexusAI Full Stack AI SaaS Platform Monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/frontend",
+    "apps/backend",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "build:frontend": "npm run build --workspace=apps/frontend",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build": "npm run build:shared && npm run build:backend && npm run build:frontend"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
