@@ -13,6 +13,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { useUsage } from "@/context/UsageContext";
+import { apiFetch } from "@/utils/apiFetch";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -51,7 +52,7 @@ export default function ImageGenPage() {
     setGeneratedImage(null);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/ai/image-gen`, {
+      const response = await apiFetch("/api/v1/ai/image-gen", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,7 +62,6 @@ export default function ImageGenPage() {
           stylePreset,
           aspectRatio,
         }),
-        credentials: "include",
       });
 
       const data = await response.json();
@@ -94,8 +94,8 @@ export default function ImageGenPage() {
   };
 
   const handleCopy = () => {
-    if (!generatedImage) return;
-    navigator.clipboard.writeText(generatedImage);
+    if (!prompt) return;
+    navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -105,8 +105,8 @@ export default function ImageGenPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20 backdrop-blur sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-green-500 to-emerald-500 flex items-center justify-center animate-pulse">
-            <ImageIcon className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-green-500 to-emerald-500 flex items-center justify-center">
+            <ImageIcon className={`w-4 h-4 text-white ${generating ? "animate-pulse" : ""}`} />
           </div>
           <div>
             <h1 className="text-sm font-bold text-white">Image Generator</h1>
@@ -120,7 +120,7 @@ export default function ImageGenPage() {
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-all bg-white/[0.01]"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Copied Base64!" : "Copy URL"}
+              {copied ? "Copied!" : "Copy Prompt"}
             </button>
             <button
               onClick={handleDownload}

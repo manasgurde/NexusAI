@@ -2,13 +2,13 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useTransition, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useUsage } from "@/context/UsageContext";
 import {
   MessageSquare, Code2, FileText, Sparkles, Image, FileSearch,
-  ArrowRight, Zap, Activity
+  ArrowRight, Zap, Loader2
 } from "lucide-react";
 
 const tools = [
@@ -55,7 +55,7 @@ const tools = [
     desc: "Create AI-generated images from text prompts",
     color: "from-green-500 to-emerald-500",
     shadow: "shadow-green-500/20",
-    ready: false,
+    ready: true,
   },
   {
     href: "/dashboard/resume",
@@ -64,7 +64,7 @@ const tools = [
     desc: "Get ATS score, strengths, and improvement tips",
     color: "from-teal-500 to-cyan-600",
     shadow: "shadow-teal-500/20",
-    ready: false,
+    ready: true,
   },
 ];
 
@@ -85,12 +85,89 @@ export default function DashboardHome() {
     );
   }
 
-  const firstName = session?.user?.name?.split(" ")[0] ?? "there";
+  const firstName = session?.user?.name?.split(" ")[0] || usage?.user?.name?.split(" ")[0] || "there";
 
   const formatPlanName = (plan: string) => {
     if (plan === "FREE") return "Free";
     return plan.replace("PRO_", "Pro ₹");
   };
+
+  // Tool card with instant navigation feedback
+  function ToolCard({ tool, index }: { tool: (typeof tools)[0]; index: number }) {
+    const [isPending, startTransition] = useTransition();
+    const [clicked, setClicked] = useState(false);
+
+    const handleClick = () => {
+      if (!tool.ready) return;
+      setClicked(true);
+      startTransition(() => {
+        router.push(tool.href);
+      });
+    };
+
+    const isNavigating = isPending || clicked;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 25 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 + index * 0.05 }}
+      >
+        <button
+          onClick={handleClick}
+          disabled={!tool.ready}
+          className={`group relative w-full text-left rounded-2xl border bg-gradient-to-b from-white/[0.02] to-transparent transition-all duration-500 p-6 overflow-hidden ${
+            !tool.ready
+              ? "opacity-40 cursor-not-allowed border-white/5"
+              : isNavigating
+              ? "border-indigo-500/40 bg-indigo-500/5 shadow-[0_20px_40px_-15px_rgba(99,102,241,0.2)] -translate-y-1"
+              : "border-white/5 hover:border-indigo-500/30 hover:bg-white/[0.04] cursor-pointer hover:-translate-y-1 hover:shadow-[0_20px_40px_-15px_rgba(99,102,241,0.1)]"
+          }`}
+        >
+          {/* Ambient hover glow */}
+          <div className={`absolute -inset-px bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent rounded-2xl transition-opacity duration-500 pointer-events-none ${
+            isNavigating ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`} />
+
+          <div className="flex items-start justify-between mb-5 relative z-10">
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${tool.color} flex items-center justify-center shadow-lg ${tool.shadow} transition-transform duration-500 ${
+              isNavigating ? "scale-110" : "group-hover:scale-110"
+            }`}>
+              <tool.icon className="w-5 h-5 text-white" />
+            </div>
+            {!tool.ready ? (
+              <span className="text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400">
+                Coming Soon
+              </span>
+            ) : (
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 ${
+                isNavigating
+                  ? "bg-indigo-500/20 border border-indigo-500/40"
+                  : "bg-white/[0.02] border border-white/5 group-hover:bg-indigo-500/15 group-hover:border-indigo-500/30"
+              }`}>
+                {isNavigating ? (
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5 text-gray-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all duration-300" />
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="relative z-10">
+            <h3 className={`font-extrabold text-base mb-1.5 transition-colors ${
+              isNavigating ? "text-indigo-300" : "text-white group-hover:text-indigo-300"
+            }`}>
+              {tool.label}
+            </h3>
+            <p className="text-xs text-gray-400 group-hover:text-gray-300 leading-relaxed transition-colors">
+              {tool.desc}
+            </p>
+          </div>
+        </button>
+      </motion.div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen p-6 lg:p-10 max-w-6xl mx-auto overflow-hidden">
@@ -171,46 +248,7 @@ export default function DashboardHome() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {tools.map((tool, i) => (
-              <motion.div
-                key={tool.href}
-                initial={{ opacity: 0, y: 25 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 + i * 0.05 }}
-              >
-                <Link
-                  href={tool.ready ? tool.href : "#"}
-                  className={`group relative block rounded-2xl border bg-gradient-to-b from-white/[0.02] to-transparent border-white/5 hover:border-indigo-500/30 hover:bg-white/[0.04] transition-all duration-500 p-6 overflow-hidden ${
-                    !tool.ready ? "opacity-40 cursor-not-allowed" : "hover:-translate-y-1 hover:shadow-[0_20px_40px_-15px_rgba(99,102,241,0.1)]"
-                  }`}
-                >
-                  {/* Subtle ambient hover glow */}
-                  <div className="absolute -inset-px bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity duration-500 pointer-events-none" />
-
-                  <div className="flex items-start justify-between mb-5 relative z-10">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${tool.color} flex items-center justify-center shadow-lg ${tool.shadow} group-hover:scale-110 transition-transform duration-500`}>
-                      <tool.icon className="w-5 h-5 text-white" />
-                    </div>
-                    {!tool.ready ? (
-                      <span className="text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400">
-                        Coming Soon
-                      </span>
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-white/[0.02] border border-white/5 group-hover:bg-indigo-500/15 group-hover:border-indigo-500/30 flex items-center justify-center transition-all duration-300">
-                        <ArrowRight className="w-3.5 h-3.5 text-gray-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all duration-300" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relative z-10">
-                    <h3 className="font-extrabold text-white text-base mb-1.5 group-hover:text-indigo-300 transition-colors">
-                      {tool.label}
-                    </h3>
-                    <p className="text-xs text-gray-400 group-hover:text-gray-300 leading-relaxed transition-colors">
-                      {tool.desc}
-                    </p>
-                  </div>
-                </Link>
-              </motion.div>
+              <ToolCard key={tool.href} tool={tool} index={i} />
             ))}
           </div>
         </div>

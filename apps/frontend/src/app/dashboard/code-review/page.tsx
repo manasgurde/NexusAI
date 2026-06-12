@@ -31,6 +31,9 @@ export default function CodeReviewPage() {
     onSuccess: refreshUsage,
   });
 
+  // True when loading has started but no tokens have arrived yet
+  const isThinking = loading && !text;
+
   const handleReview = () => {
     if (!code.trim()) return;
     start({ code, language });
@@ -286,6 +289,24 @@ export default function CodeReviewPage() {
                     Paste your code or upload a file and click Review to get AI analysis
                   </p>
                 </div>
+              )}
+
+              {/* Thinking / connecting state */}
+              {isThinking && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center h-full gap-4"
+                >
+                  <div className="flex gap-1.5">
+                    {[0,1,2].map((i) => (
+                      <span key={i} className="w-2 h-2 rounded-full bg-violet-400"
+                        style={{ animation: "nexus-typing-dot 1.2s ease-in-out infinite", animationDelay: `${i*0.2}s` }} />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">Analyzing your code...</p>
+                  <style>{`@keyframes nexus-typing-dot { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-5px);opacity:1} }`}</style>
+                </motion.div>
               )}
 
               {error && (

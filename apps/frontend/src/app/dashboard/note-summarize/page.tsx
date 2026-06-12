@@ -52,6 +52,8 @@ export default function NoteSummarizerPage() {
     onSuccess: refreshUsage,
   });
 
+  const isThinking = loading && !text;
+
   const charCount = textInput.length;
   const isInputValid = charCount >= 50;
 
@@ -389,6 +391,24 @@ export default function NoteSummarizerPage() {
                     Paste text or upload a file and click Summarize to get structural takeaways and insights
                   </p>
                 </div>
+              )}
+
+              {/* Thinking indicator */}
+              {isThinking && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center h-full gap-4"
+                >
+                  <div className="flex gap-1.5">
+                    {[0,1,2].map((i) => (
+                      <span key={i} className="w-2 h-2 rounded-full bg-amber-400"
+                        style={{ animation: "nexus-typing-dot 1.2s ease-in-out infinite", animationDelay: `${i*0.2}s` }} />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">Summarizing your document...</p>
+                  <style>{`@keyframes nexus-typing-dot { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-5px);opacity:1} }`}</style>
+                </motion.div>
               )}
 
               {error && (

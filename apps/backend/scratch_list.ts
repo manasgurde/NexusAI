@@ -1,42 +1,46 @@
+import { PrismaClient } from "@prisma/client";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
-// Load backend .env variables
 dotenv.config({ path: path.join(__dirname, "./.env") });
 
-const apiKey = process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-  console.error("❌ GEMINI_API_KEY is not set in .env!");
-  process.exit(1);
-}
-
-console.log(`Using API key: ${apiKey.substring(0, 8)}...`);
-
-async function testEndpoint(apiVersion: string) {
-  const url = `https://generativelanguage.googleapis.com/${apiVersion}/models?key=${apiKey}`;
-  console.log(`\nFetching from: https://generativelanguage.googleapis.com/${apiVersion}/models`);
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (res.ok) {
-      console.log(`✅ Success (${apiVersion}): Found ${data.models?.length || 0} models.`);
-      const supported = data.models
-        ?.filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-        ?.map((m: any) => m.name);
-      console.log("Supported generateContent models:");
-      supported?.forEach((name: string) => console.log(` - ${name}`));
-    } else {
-      console.error(`❌ Error (${apiVersion}): Status ${res.status}`, data);
-    }
-  } catch (err: any) {
-    console.error(`❌ Error (${apiVersion}):`, err.message || err);
-  }
-}
+const prisma = new PrismaClient();
 
 async function run() {
-  await testEndpoint("v1");
-  await testEndpoint("v1beta");
+  console.log("Inspecting database users and organization subscriptions...");
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        memberships: {
+          include: {
+            organization: {
+              include: {
+                subscriptions: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    console.log(`Found ${users.length} users:`);
+    users.forEach((u) => {
+      console.log(`- User: ${u.name} (${u.email}) [ID: ${u.id}]`);
+      console.log(`  Memberships count: ${u.memberships.length}`);
+      u.memberships.forEach((m) => {
+        console.log(`    - Org: ${m.organization.name} [ID: ${m.organizationId}] Role: ${m.role}`);
+        console.log(`      Subscriptions count: ${m.organization.subscriptions.length}`);
+        m.organization.subscriptions.forEach((s) => {
+          console.log(`        - Plan: ${s.plan} Status: ${s.status} [ID: ${s.id}] StripeSubId: ${s.stripeSubscriptionId} RazorpaySubId: ${s.razorpaySubscriptionId}`);
+        });
+      });
+    });
+
+  } catch (err: any) {
+    console.error("Database query failed:", err.message || err);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 run();

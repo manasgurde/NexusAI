@@ -33,10 +33,14 @@ async function testModel(modelName: string, apiVersion?: string) {
 
 async function run() {
   const modelsToTest = [
-    { name: "gemini-3.5-flash", version: "v1" },
-    { name: "gemini-2.5-flash-lite", version: "v1" },
-    { name: "gemini-3.1-flash-lite", version: "v1" },
-    { name: "gemini-2.5-flash", version: "v1" }
+    { name: "gemini-1.5-flash", version: "v1" },
+    { name: "gemini-1.5-pro", version: "v1" },
+    { name: "gemini-1.5-flash", version: "v1beta" },
+    { name: "gemini-1.5-pro", version: "v1beta" },
+    { name: "gemini-2.5-flash", version: "v1beta" },
+    { name: "gemini-2.5-flash", version: "v1" },
+    { name: "gemini-2.5-pro", version: "v1beta" },
+    { name: "gemini-2.5-pro", version: "v1" }
   ];
 
   for (const item of modelsToTest) {

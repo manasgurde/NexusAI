@@ -137,7 +137,10 @@ router.post("/", requireAuth, upload.single("file"), async (req: AuthenticatedRe
     console.log(`Chunked file into ${chunks.length} segments for vector database.`);
 
     for (const chunk of chunks) {
-      const embedResult = await geminiEmbedding.embedContent(chunk);
+      const embedResult = await geminiEmbedding.embedContent({
+        content: { role: "user", parts: [{ text: chunk }] },
+        outputDimensionality: 768
+      } as any);
       const embedding = embedResult.embedding.values;
       const embeddingId = crypto.randomUUID();
       const embeddingString = `[${embedding.join(",")}]`;

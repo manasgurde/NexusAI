@@ -59,13 +59,17 @@ model User {
   image         String?
   passwordHash  String?              @map("password_hash")
   role          PlatformRole         @default(USER)
-  createdAt     DateTime             @default(now()) @map("created_at")
-  updatedAt     DateTime             @updatedAt @map("updated_at")
+  isBanned          Boolean              @default(false) @map("is_banned")
+  billingAlerts     Boolean              @default(true) @map("billing_alerts")
+  usageAlerts       Boolean              @default(true) @map("usage_alerts")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
   deletedAt         DateTime?            @map("deleted_at")
   resetTokenHash    String?              @map("reset_token_hash")
   resetTokenExpires DateTime?            @map("reset_token_expires")
+  clerkId           String?              @unique @map("clerk_id")
 
-  // NextAuth relations
+  // Clerk OAuth relations (managed externally by Clerk)
   accounts      Account[]
   sessions      Session[]
 
@@ -78,6 +82,7 @@ model User {
   adminLogs     AdminLog[]
   notifications Notification[]
   chatSessions  ChatSession[]
+  apiKeys       ApiKey[]
 
   @@map("users")
 }
@@ -322,4 +327,17 @@ model DocumentEmbedding {
   uploadedFile UploadedFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   @@map("document_embeddings")
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String   @default("Default Key")
+  keyHash   String   @unique @map("key_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
 }

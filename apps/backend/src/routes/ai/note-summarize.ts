@@ -106,7 +106,10 @@ router.post("/ask", requireAuth, checkQuota, async (req: QuotaRequest, res: Resp
     }
 
     // 1. Generate embedding for user's question
-    const embedResult = await geminiEmbedding.embedContent(question);
+    const embedResult = await geminiEmbedding.embedContent({
+      content: { role: "user", parts: [{ text: question }] },
+      outputDimensionality: 768
+    } as any);
     const embedding = embedResult.embedding.values;
     const embeddingString = `[${embedding.join(",")}]`;
 

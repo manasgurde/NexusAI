@@ -61,16 +61,47 @@ router.post("/", requireAuth, checkQuota, async (req: QuotaRequest, res: Respons
 
     console.log(`Generating image for user ${userId}: "${styledPrompt}" with size ${width}x${height}`);
 
-    // 3. Fetch image buffer from Pollinations.ai
-    const response = await fetch(pollinationsUrl);
+    // 3. Fetch image buffer from Pollinations.ai with LoremFlickr fallback
+    let response: any;
+    let fallbackUsed = false;
     
-    if (!response.ok) {
-      throw new Error(`Image generator API returned status ${response.status}`);
+    try {
+      response = await fetch(pollinationsUrl);
+      if (!response.ok) {
+        console.warn(`[ImageGen] Pollinations returned status ${response.status}. Falling back to LoremFlickr...`);
+        fallbackUsed = true;
+      }
+    } catch (err: any) {
+      console.warn(`[ImageGen] Pollinations fetch failed: ${err.message}. Falling back to LoremFlickr...`);
+      fallbackUsed = true;
+    }
+
+    if (fallbackUsed) {
+      // Clean up prompt to extract keywords for stock photo search
+      const keywords = prompt
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/)
+        .slice(0, 3)
+        .join(",");
+      
+      const fallbackUrl = `https://loremflickr.com/${width}/${height}/${encodeURIComponent(keywords || "abstract")}`;
+      console.log(`[ImageGen] Fetching fallback image from: ${fallbackUrl}`);
+      try {
+        response = await fetch(fallbackUrl);
+        if (!response.ok) {
+          throw new Error(`Fallback returned status ${response.status}`);
+        }
+      } catch (err: any) {
+        throw new Error(`Failed to generate image from both Pollinations and fallback: ${err.message}`);
+      }
     }
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const base64Image = `data:image/webp;base64,${buffer.toString("base64")}`;
+    const contentType = response.headers.get("content-type") || "image/webp";
+    const base64Image = `data:${contentType};base64,${buffer.toString("base64")}`;
 
     // 4. Save to AI history log
     await db.aIHistory.create({

@@ -20,6 +20,20 @@ app.use(
   })
 );
 app.use(cookieParser());
+
+// Webhooks must be registered before the global express.json body parser to retrieve raw body buffer
+import paymentsRouter, { stripeWebhookHandler, razorpayWebhookHandler } from "./routes/payments.js";
+app.post(
+  "/api/v1/payments/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  stripeWebhookHandler
+);
+app.post(
+  "/api/v1/payments/razorpay/webhook",
+  express.raw({ type: "application/json" }),
+  razorpayWebhookHandler
+);
+
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ limit: "5mb", extended: true }));
 app.use(morgan("dev"));
@@ -39,7 +53,10 @@ app.use(limiter);
 
 import authRouter from "./controllers/auth.js";
 import dashboardRouter from "./controllers/dashboard.js";
+import organizationsRouter from "./routes/organizations.js";
+import adminRouter from "./routes/admin.js";
 import chatbotRouter from "./routes/ai/chatbot.js";
+
 import codeReviewRouter from "./routes/ai/code-review.js";
 import contentGenRouter from "./routes/ai/content-gen.js";
 import noteSummarizeRouter from "./routes/ai/note-summarize.js";
@@ -61,6 +78,15 @@ app.use("/api/v1/auth", authRouter);
 
 // Dashboard Routes
 app.use("/api/v1/dashboard", dashboardRouter);
+
+// Payment Routes
+app.use("/api/v1/payments", paymentsRouter);
+
+// Organization Routes
+app.use("/api/v1/organizations", organizationsRouter);
+
+// Admin Routes
+app.use("/api/v1/admin", adminRouter);
 
 // AI Tool Routes
 app.use("/api/v1/ai/chatbot", chatbotRouter);

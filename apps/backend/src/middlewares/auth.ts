@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { UserRole } from "@nexusai/shared";
+import { db } from "../lib/db.js";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -9,15 +10,21 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export const requireAuth = (
+export const requireAuth = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-): void => {
-  let token: string | undefined = req.cookies?.access_token;
+): Promise<void> => {
+  let token: string | undefined;
 
-  if (!token && req.headers.authorization?.startsWith("Bearer ")) {
+  // Prefer Bearer token from Authorization header
+  if (req.headers.authorization?.startsWith("Bearer ")) {
     token = req.headers.authorization.split(" ")[1];
+  }
+
+  // Fallback: cookie-based token
+  if (!token) {
+    token = req.cookies?.access_token;
   }
 
   if (!token) {
@@ -31,6 +38,19 @@ export const requireAuth = (
   try {
     const secret = process.env.JWT_ACCESS_SECRET || "default_access_secret_key_1234567890_value";
     const decoded = jwt.verify(token, secret) as { userId: string; role: UserRole };
+
+    const user = await db.user.findUnique({
+      where: { id: decoded.userId },
+      select: { isBanned: true }
+    });
+
+    if (user?.isBanned) {
+      res.status(403).json({
+        success: false,
+        message: "Forbidden. Your account has been suspended."
+      });
+      return;
+    }
 
     req.user = {
       id: decoded.userId,
