@@ -24,6 +24,7 @@
     "nextjs-toploader": "^3.9.17",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-is": "^18.3.1",
     "react-hook-form": "^7.51.5",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
