@@ -13,6 +13,9 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
+    env:
+      DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
+      DIRECT_URL: postgresql://mock:mock@localhost:5432/mock
 
     steps:
       - name: Checkout code
@@ -46,6 +49,8 @@ jobs:
       NEXT_PUBLIC_BACKEND_URL: http://localhost:5000
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-secret-placeholder
+      DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
+      DIRECT_URL: postgresql://mock:mock@localhost:5432/mock
 
     steps:
       - name: Checkout code
