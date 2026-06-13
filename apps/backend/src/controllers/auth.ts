@@ -72,7 +72,7 @@ router.post(
           }
         });
 
-        const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-workspace`;
+        const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-workspace-${crypto.randomBytes(3).toString("hex")}`;
         const newOrg = await tx.organization.create({
           data: {
             name: `${name}'s Workspace`,
